@@ -2,21 +2,19 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../lib/supabaseClient";
 
 export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace("/projects");
-      else router.replace("/login");
-    });
+    // Landing page: siempre empieza en Login.
+    // Si ya hay sesión, el propio /login te redirige a /game.
+    router.replace("/login");
   }, [router]);
 
   return (
-    <main style={{ fontFamily: "system-ui", padding: 24 }}>
-      Redirigiendo...
+    <main className="min-h-screen grid place-items-center">
+      <p className="text-sm text-neutral-500">Redirigiendo...</p>
     </main>
   );
 }
