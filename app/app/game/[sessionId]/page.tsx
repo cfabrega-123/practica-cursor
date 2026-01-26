@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { startRound } from "@/lib/startRound";
 
 type GameSessionRow = {
   id: string;
@@ -22,6 +23,7 @@ type RoundRow = {
   id: string;
   round_number: number;
   status: string;
+  impostor_count: number;
   created_at: string;
 };
 
@@ -39,7 +41,7 @@ function getParamId(v: unknown): string | null {
 export default function GameSessionPage() {
   const router = useRouter();
   const params = useParams();
-  const sessionId = useMemo(() => getParamId((params as Record<string, unknown>)?.id), [params]);
+  const sessionId = useMemo(() => getParamId((params as Record<string, unknown>)?.sessionId), [params]);
 
   const [session, setSession] = useState<GameSessionRow | null>(null);
   const [players, setPlayers] = useState<PlayerRow[]>([]);
@@ -115,7 +117,7 @@ export default function GameSessionPage() {
     // 3) Rounds
     const r = await supabase
       .from("game_rounds")
-      .select("id,round_number,status,created_at")
+      .select("id,round_number,status,impostor_count,created_at")
       .eq("session_id", sessionId)
       .order("round_number", { ascending: false });
 
@@ -216,7 +218,11 @@ export default function GameSessionPage() {
     if (!ok) return;
     setLoading(true);
     setMsg(null);
-    const res = await supabase.from("game_session_players").delete().eq("id", id).eq("session_id", sessionId);
+    const res = await supabase
+      .from("game_session_players")
+      .delete()
+      .eq("id", id)
+      .eq("session_id", sessionId);
     setLoading(false);
     if (res.error) {
       setMsg(res.error.message);
@@ -243,18 +249,23 @@ export default function GameSessionPage() {
 
     const maxRound = rounds.reduce((acc, r) => Math.max(acc, r.round_number), 0);
     const nextNum = maxRound + 1;
+    const imp = Math.max(1, Math.min(10, Number(impostorCount) || 1));
 
-    const res = await supabase.from("game_rounds").insert({
-      session_id: sessionId,
-      owner_id: userId,
-      round_number: nextNum,
-      status: "draft",
-      impostor_count: Math.max(1, Math.min(10, Number(impostorCount) || 1)),
-      pack_id: null,
-      chosen_item_id: null,
-      started_at: null,
-      ended_at: null,
-    });
+    const res = await supabase
+      .from("game_rounds")
+      .insert({
+        session_id: sessionId,
+        owner_id: userId,
+        round_number: nextNum,
+        status: "draft",
+        impostor_count: imp,
+        pack_id: null,
+        chosen_item_id: null,
+        started_at: null,
+        ended_at: null,
+      })
+      .select("id")
+      .single();
 
     setLoading(false);
     if (res.error) {
@@ -262,7 +273,58 @@ export default function GameSessionPage() {
       return;
     }
 
-    await loadAll();
+    const roundId = String((res.data as { id: string }).id);
+
+    // Start round (creates assignments + sets running) and go to reveal UI
+    setLoading(true);
+    const started = await startRound({ sessionId, roundId, impostorCount: imp });
+    setLoading(false);
+
+    if (!started.ok) {
+      setMsg(started.rlsHint ? `${started.error}\n\n${started.rlsHint}` : started.error);
+      await loadAll();
+      return;
+    }
+
+    router.push(`/game/${sessionId}/round/${roundId}`);
+  }
+
+  async function onStartExistingRound(r: RoundRow) {
+    if (!sessionId) return;
+    setMsg(null);
+
+    // Idempotente: si ya tiene assignments, startRound no los recrea.
+    // Si está en draft y ya tenía roles, ofrecemos "re-rollear".
+    setLoading(true);
+    const started = await startRound({ sessionId, roundId: r.id, impostorCount: r.impostor_count });
+    setLoading(false);
+
+    if (!started.ok) {
+      setMsg(started.rlsHint ? `${started.error}\n\n${started.rlsHint}` : started.error);
+      return;
+    }
+
+    if (started.alreadyHadAssignments && r.status === "draft") {
+      const reset = confirm(
+        "Esta ronda ya tenía roles asignados. ¿Quieres volver a mezclar (borrar y re-crear) los roles?"
+      );
+      if (reset) {
+        setLoading(true);
+        const again = await startRound({
+          sessionId,
+          roundId: r.id,
+          impostorCount: r.impostor_count,
+          forceReset: true,
+        });
+        setLoading(false);
+        if (!again.ok) {
+          setMsg(again.rlsHint ? `${again.error}\n\n${again.rlsHint}` : again.error);
+          return;
+        }
+      }
+    }
+
+    router.push(`/game/${sessionId}/round/${r.id}`);
   }
 
   return (
@@ -273,9 +335,7 @@ export default function GameSessionPage() {
             <Link href="/game" className="text-sm text-neutral-300 hover:text-white">
               ← Volver a sesiones
             </Link>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-              {session?.title ?? "Impostor Game"}
-            </h1>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight">{session?.title ?? "Impostor Game"}</h1>
             {session?.created_at && (
               <p className="mt-1 text-sm text-neutral-400">
                 Creada: {new Date(session.created_at).toLocaleString()}
@@ -337,9 +397,7 @@ export default function GameSessionPage() {
                       <div className={["font-medium", p.is_active ? "" : "text-neutral-400 line-through"].join(" ")}>
                         {p.name}
                       </div>
-                      <div className="text-xs text-neutral-500">
-                        {p.is_active ? "Activo" : "Inactivo"}
-                      </div>
+                      <div className="text-xs text-neutral-500">{p.is_active ? "Activo" : "Inactivo"}</div>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -403,8 +461,25 @@ export default function GameSessionPage() {
                       <div className="font-medium">Ronda #{r.round_number}</div>
                       <div className="text-xs text-neutral-500">Estado: {r.status}</div>
                     </div>
-                    <div className="text-xs text-neutral-500">
-                      {new Date(r.created_at).toLocaleString()}
+                    <div className="flex items-center gap-3">
+                      {r.status === "draft" ? (
+                        <button
+                          onClick={() => onStartExistingRound(r)}
+                          disabled={loading}
+                          className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-neutral-900 hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Comenzar
+                        </button>
+                      ) : (
+                        <Link
+                          href={sessionId ? `/game/${sessionId}/round/${r.id}` : "#"}
+                          className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-neutral-900 hover:bg-neutral-200"
+                          aria-disabled={!sessionId}
+                        >
+                          Revelar roles
+                        </Link>
+                      )}
+                      <div className="text-xs text-neutral-500">{new Date(r.created_at).toLocaleString()}</div>
                     </div>
                   </li>
                 ))}
