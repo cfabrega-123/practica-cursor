@@ -41,7 +41,7 @@ export async function startRound(
   // Validar ronda existe y pertenece a la sesión
   const roundRes = await supabase
     .from("game_rounds")
-    .select("id,session_id,status")
+    .select("id,session_id,status,pack_id,chosen_item_id")
     .eq("id", roundId)
     .single();
 
@@ -50,6 +50,13 @@ export async function startRound(
   }
   if (roundRes.data.session_id !== sessionId) {
     return { ok: false, error: "El roundId no pertenece a este sessionId." };
+  }
+
+  // Resolver pack_id para esta ronda (preferir round.pack_id, sino session.pack_id)
+  let packId: string | null = (roundRes.data as { pack_id: string | null }).pack_id ?? null;
+  if (!packId) {
+    const s = await supabase.from("game_sessions").select("pack_id").eq("id", sessionId).single();
+    if (!s.error) packId = (s.data as { pack_id: string | null }).pack_id ?? null;
   }
 
   // Jugadores activos
@@ -88,9 +95,18 @@ export async function startRound(
     if (roundRes.data.status === "draft") {
       const upd = await supabase
         .from("game_rounds")
-        .update({ status: "running", started_at: nowIso, ended_at: null })
+        .update({ status: "running", started_at: nowIso, ended_at: null, pack_id: packId })
         .eq("id", roundId);
       if (upd.error) return { ok: false, error: upd.error.message, rlsHint: rlsHint(upd.error) };
+    }
+
+    // Si hay pack y no hay chosen_item_id aún, escoger uno para el secreto
+    const alreadyChosen = (roundRes.data as { chosen_item_id: string | null }).chosen_item_id ?? null;
+    if (packId && !alreadyChosen) {
+      const pick = await pickRandomItemId(packId);
+      if (!pick.ok) return { ok: false, error: pick.error, rlsHint: pick.rlsHint };
+      const u = await supabase.from("game_rounds").update({ chosen_item_id: pick.itemId }).eq("id", roundId);
+      if (u.error) return { ok: false, error: u.error.message, rlsHint: rlsHint(u.error) };
     }
     return { ok: true, alreadyHadAssignments: true, roundId, sessionId };
   }
@@ -113,19 +129,45 @@ export async function startRound(
   const ins = await supabase.from("game_round_assignments").insert(rows);
   if (ins.error) return { ok: false, error: ins.error.message, rlsHint: rlsHint(ins.error) };
 
+  // Elegir secreto (chosen_item) si hay pack
+  let chosenItemId: string | null = null;
+  if (packId) {
+    const pick = await pickRandomItemId(packId);
+    if (!pick.ok) return { ok: false, error: pick.error, rlsHint: pick.rlsHint };
+    chosenItemId = pick.itemId;
+  }
+
   const upd = await supabase
     .from("game_rounds")
-    .update({ status: "running", started_at: nowIso, ended_at: null })
+    .update({
+      status: "running",
+      started_at: nowIso,
+      ended_at: null,
+      pack_id: packId,
+      chosen_item_id: chosenItemId,
+    })
     .eq("id", roundId);
   if (upd.error) return { ok: false, error: upd.error.message, rlsHint: rlsHint(upd.error) };
 
   return { ok: true, alreadyHadAssignments: false, roundId, sessionId };
 }
 
+async function pickRandomItemId(
+  packId: string
+): Promise<{ ok: true; itemId: string } | { ok: false; error: string; rlsHint?: string }> {
+  const res = await supabase.from("pack_items").select("id").eq("pack_id", packId);
+  if (res.error) return { ok: false, error: res.error.message, rlsHint: rlsHint(res.error) };
+  const ids = (res.data ?? []).map((r) => String((r as { id: string }).id));
+  if (ids.length === 0) return { ok: false, error: "El pack seleccionado no tiene items (pack_items) para elegir." };
+  const [id] = pickRandom(ids, 1);
+  if (!id) return { ok: false, error: "No se pudo elegir un item del pack." };
+  return { ok: true, itemId: id };
+}
+
 function rlsHint(err: PostgrestError): string | undefined {
   const m = String(err.message ?? "").toLowerCase();
   if (m.includes("row-level security") || m.includes("permission denied")) {
-    return "Parece un error de RLS/permisos. Revisa policies de insert/update en `game_round_assignments` y `game_rounds`.";
+    return "Parece un error de RLS/permisos. Revisa policies de select en `packs/pack_items` y insert/update en `game_round_assignments` y `game_rounds`.";
   }
   return undefined;
 }

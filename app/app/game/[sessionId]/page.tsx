@@ -5,11 +5,14 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { startRound } from "@/lib/startRound";
+import { listAvailablePacks, type PackRow } from "@/lib/packs";
 
 type GameSessionRow = {
   id: string;
   title?: string | null;
   created_at: string;
+  pack_id: string | null;
+  chosen_item_id: string | null;
 };
 
 type PlayerRow = {
@@ -50,6 +53,10 @@ export default function GameSessionPage() {
   const [newPlayerName, setNewPlayerName] = useState("");
   const [impostorCount, setImpostorCount] = useState(1);
 
+  const [packs, setPacks] = useState<PackRow[]>([]);
+  const [selectedPackId, setSelectedPackId] = useState<string>("");
+  const [savingPack, setSavingPack] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -70,10 +77,11 @@ export default function GameSessionPage() {
       return;
     }
 
-    // 1) Session (tolerante a DB sin title)
+    // 1) Session (incluye pack_id)
+    let sessionRow: GameSessionRow | null = null;
     const withTitle = await supabase
       .from("game_sessions")
-      .select("id,title,created_at")
+      .select("id,title,created_at,pack_id,chosen_item_id")
       .eq("id", sessionId)
       .single();
 
@@ -82,7 +90,7 @@ export default function GameSessionPage() {
       if (m.includes("title") && (m.includes("does not exist") || m.includes("schema cache"))) {
         const fallback = await supabase
           .from("game_sessions")
-          .select("id,created_at")
+          .select("id,created_at,pack_id,chosen_item_id")
           .eq("id", sessionId)
           .single();
 
@@ -91,14 +99,30 @@ export default function GameSessionPage() {
           return;
         }
 
-        const base = fallback.data as { id: string; created_at: string };
-        setSession({ id: base.id, created_at: base.created_at, title: null });
+        const base = fallback.data as {
+          id: string;
+          created_at: string;
+          pack_id: string | null;
+          chosen_item_id: string | null;
+        };
+        sessionRow = {
+          id: base.id,
+          created_at: base.created_at,
+          title: null,
+          pack_id: base.pack_id ?? null,
+          chosen_item_id: base.chosen_item_id ?? null,
+        };
       } else {
         setMsg(withTitle.error.message);
         return;
       }
     } else {
-      setSession(withTitle.data as GameSessionRow);
+      sessionRow = withTitle.data as GameSessionRow;
+    }
+
+    if (sessionRow) {
+      setSession(sessionRow);
+      setSelectedPackId(sessionRow.pack_id ?? "");
     }
 
     // 2) Players (roster)
@@ -139,8 +163,48 @@ export default function GameSessionPage() {
         return;
       }
       void loadAll();
+      void (async () => {
+        const res = await listAvailablePacks();
+        if (res.error) {
+          setMsg(res.error.message);
+          return;
+        }
+        setPacks(res.data);
+      })();
     });
   }, [loadAll, router, sessionId]);
+
+  const selectedPack = useMemo(() => {
+    const id = selectedPackId || session?.pack_id || "";
+    return packs.find((p) => p.id === id) ?? null;
+  }, [packs, selectedPackId, session?.pack_id]);
+
+  async function saveSessionPack(packId: string) {
+    if (!sessionId) return;
+    setSavingPack(true);
+    setMsg(null);
+
+    const res = await supabase
+      .from("game_sessions")
+      .update({ pack_id: packId || null, chosen_item_id: null })
+      .eq("id", sessionId);
+
+    setSavingPack(false);
+    if (res.error) {
+      setMsg(res.error.message);
+      return;
+    }
+
+    // Si hay rondas draft, limpia el secreto para que se regenere al iniciar
+    await supabase
+      .from("game_rounds")
+      .update({ chosen_item_id: null, pack_id: packId || null })
+      .eq("session_id", sessionId)
+      .eq("status", "draft");
+
+    setSelectedPackId(packId);
+    await loadAll();
+  }
 
   async function signOut() {
     setLoading(true);
@@ -259,7 +323,7 @@ export default function GameSessionPage() {
         round_number: nextNum,
         status: "draft",
         impostor_count: imp,
-        pack_id: null,
+        pack_id: selectedPackId || session?.pack_id || null,
         chosen_item_id: null,
         started_at: null,
         ended_at: null,
@@ -351,6 +415,38 @@ export default function GameSessionPage() {
             Logout
           </button>
         </header>
+
+        <section className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
+          <h2 className="text-lg font-semibold">Pack</h2>
+          <p className="mt-1 text-sm text-neutral-400">
+            Selecciona el pack para esta sesión. Esto reinicia el secreto (chosen item).
+          </p>
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <select
+              value={selectedPackId || session?.pack_id || ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSelectedPackId(v);
+                void saveSessionPack(v);
+              }}
+              disabled={savingPack}
+              className="w-full max-w-md rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-white/20 disabled:opacity-60"
+            >
+              <option value="">— Sin pack —</option>
+              {packs.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.is_global ? "[Global] " : "[Privado] "}
+                  {p.name} ({p.kind})
+                </option>
+              ))}
+            </select>
+
+            <div className="text-sm text-neutral-300">
+              Actual: <span className="font-semibold">{selectedPack?.name ?? "—"}</span>
+            </div>
+          </div>
+        </section>
 
         {msg && (
           <div className="mt-5 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
