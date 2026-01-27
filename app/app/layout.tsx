@@ -13,8 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Impostor Panamá",
-  description: "Juego tipo Impostor con packs panameños.",
+  title: "Impostor",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
