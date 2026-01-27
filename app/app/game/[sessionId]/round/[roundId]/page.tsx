@@ -186,8 +186,7 @@ export default function RoundRevealPage() {
   async function onEndRound() {
     if (!roundId || !round) return;
     if (round.status !== "running") return;
-    const ok = confirm("¿Terminar ronda? Ya no se podrá revelar más.");
-    if (!ok) return;
+    if (loading) return;
 
     setLoading(true);
     const res = await endRound(roundId);
@@ -204,8 +203,7 @@ export default function RoundRevealPage() {
   async function onPlayAgain() {
     if (!roundId || !round) return;
     if (round.status !== "ended") return;
-    const ok = confirm("¿Jugar de nuevo en esta misma ronda? Se volverán a mezclar los roles.");
-    if (!ok) return;
+    if (loading) return;
 
     setLoading(true);
     const started = await startRound({
@@ -227,8 +225,7 @@ export default function RoundRevealPage() {
   async function onDeleteRound() {
     if (!roundId || !round) return;
     if (round.status !== "ended") return;
-    const ok = confirm("¿Borrar esta ronda? (Se eliminarán también sus asignaciones)");
-    if (!ok) return;
+    if (loading) return;
 
     setLoading(true);
     const res = await deleteRound(roundId);

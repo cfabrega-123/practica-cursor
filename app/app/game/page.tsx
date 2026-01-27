@@ -56,8 +56,15 @@ export default function GameSessionsPage() {
   }
 
   async function onDelete(id: string) {
-    if (!confirm("¿Eliminar esta sesión? Se perderán jugadores y rondas.")) return;
-    await deleteGameSession(id);
+    if (loading) return;
+    setLoading(true);
+    setMsg(null);
+    const res = await deleteGameSession(id);
+    setLoading(false);
+    if (res.error) {
+      setMsg(res.error.message);
+      return;
+    }
     await load();
   }
 
