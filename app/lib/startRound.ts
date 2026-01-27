@@ -52,12 +52,18 @@ export async function startRound(
     return { ok: false, error: "El roundId no pertenece a este sessionId." };
   }
 
-  // Resolver pack_id para esta ronda (preferir round.pack_id, sino session.pack_id)
-  let packId: string | null = (roundRes.data as { pack_id: string | null }).pack_id ?? null;
-  if (!packId) {
-    const s = await supabase.from("game_sessions").select("pack_id").eq("id", sessionId).single();
-    if (!s.error) packId = (s.data as { pack_id: string | null }).pack_id ?? null;
-  }
+  // Resolver pack_id para esta ronda:
+  // - si round.pack_id existe => usarlo
+  // - sino, si session.pack_id existe => usarlo
+  // - sino, escoger 1 pack aleatorio disponible (global + del usuario) y asignarlo a la ronda
+  const resolvedPack = await resolvePackForRound({
+    userId,
+    sessionId,
+    roundId,
+    currentRoundPackId: (roundRes.data as { pack_id: string | null }).pack_id ?? null,
+  });
+  if (!resolvedPack.ok) return { ok: false, error: resolvedPack.error, rlsHint: resolvedPack.rlsHint };
+  const packId = resolvedPack.packId;
 
   // Jugadores activos
   const playersRes = await supabase
@@ -150,6 +156,43 @@ export async function startRound(
   if (upd.error) return { ok: false, error: upd.error.message, rlsHint: rlsHint(upd.error) };
 
   return { ok: true, alreadyHadAssignments: false, roundId, sessionId };
+}
+
+async function resolvePackForRound(params: {
+  userId: string;
+  sessionId: string;
+  roundId: string;
+  currentRoundPackId: string | null;
+}): Promise<{ ok: true; packId: string | null } | { ok: false; error: string; rlsHint?: string }> {
+  // Respect explicit pack on round (never override)
+  if (params.currentRoundPackId) return { ok: true, packId: params.currentRoundPackId };
+
+  // Try session pack
+  const s = await supabase.from("game_sessions").select("pack_id").eq("id", params.sessionId).single();
+  if (s.error) return { ok: false, error: s.error.message, rlsHint: rlsHint(s.error) };
+  const sessionPackId = (s.data as { pack_id: string | null }).pack_id ?? null;
+  if (sessionPackId) return { ok: true, packId: sessionPackId };
+
+  // No pack selected: pick one random available (global OR own)
+  const packsRes = await supabase
+    .from("packs")
+    .select("id,is_global,owner_id,name")
+    .or(`is_global.eq.true,owner_id.eq.${params.userId}`)
+    .order("is_global", { ascending: false })
+    .order("name", { ascending: true });
+
+  if (packsRes.error) return { ok: false, error: packsRes.error.message, rlsHint: rlsHint(packsRes.error) };
+  const ids = (packsRes.data ?? []).map((r) => String((r as { id: string }).id));
+  if (ids.length === 0) return { ok: false, error: "No hay packs disponibles para iniciar la ronda." };
+
+  const [picked] = pickRandom(ids, 1);
+  if (!picked) return { ok: false, error: "No se pudo escoger un pack aleatorio." };
+
+  // Persist on the round so it’s deterministic for this round
+  const upd = await supabase.from("game_rounds").update({ pack_id: picked }).eq("id", params.roundId);
+  if (upd.error) return { ok: false, error: upd.error.message, rlsHint: rlsHint(upd.error) };
+
+  return { ok: true, packId: picked };
 }
 
 async function pickRandomItemId(
