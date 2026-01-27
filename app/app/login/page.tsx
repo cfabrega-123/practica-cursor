@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -189,15 +190,32 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-800 text-neutral-100">
-      <div className="mx-auto flex min-h-screen max-w-5xl items-center justify-center px-4 py-10">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
+    <main className="min-h-screen text-neutral-100 px-4 py-10">
+      <div className="mx-auto max-w-md">
+        <div className="flex flex-col items-center text-center">
+          <Image
+            src="/impostor-logo.png"
+            alt="Impostor Panamá"
+            width={420}
+            height={240}
+            priority
+            className="h-28 w-auto drop-shadow-2xl floaty select-none"
+          />
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight">
+            Impostor Panamá
+          </h1>
+          <p className="mt-1 text-sm text-neutral-300">
+            Pasa el teléfono, revela tu rol y juega con tu gente.
+          </p>
+        </div>
+
+        <div className="mt-6 glass-card p-6 shadow-2xl">
           <div className="mb-5">
-            <h1 className="text-2xl font-semibold tracking-tight">
+            <h2 className="text-xl font-semibold tracking-tight">
               {mode === "login" ? "Entrar" : "Crear cuenta"}
-            </h1>
+            </h2>
             <p className="mt-1 text-sm text-neutral-300">
-              Impostor: crea sesiones y juega con tu grupo.
+              Usa email o username.
             </p>
           </div>
 
@@ -211,7 +229,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => router.replace("/game")}
-                  className="flex-1 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-200"
+                  className="flex-1 rounded-xl btn-primary px-3 py-2 text-sm font-semibold transition"
                 >
                   Continuar
                 </button>
@@ -219,7 +237,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={signOut}
                   disabled={loading}
-                  className="flex-1 rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-neutral-100 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex-1 rounded-xl btn-ghost px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Cerrar sesión
                 </button>
@@ -271,7 +289,7 @@ export default function LoginPage() {
                 placeholder={
                   mode === "login" ? "tuemail@dominio.com o calix_123" : "tuemail@dominio.com"
                 }
-                className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:border-white/20"
+                className="mt-1 w-full input-field px-3 py-2 text-sm placeholder:text-neutral-500"
                 autoComplete={mode === "login" ? "username" : "email"}
               />
             </div>
@@ -283,14 +301,14 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 pr-10 text-sm outline-none placeholder:text-neutral-500 focus:border-white/20"
+                  className="w-full input-field px-3 py-2 pr-10 text-sm placeholder:text-neutral-500"
                   type={showPassword ? "text" : "password"}
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-sm text-neutral-200 hover:bg-white/10"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-sm text-neutral-200 hover:bg-white/10 active:translate-y-[calc(-50%+1px)]"
                   aria-label={showPassword ? "Ocultar password" : "Mostrar password"}
                   title={showPassword ? "Ocultar password" : "Mostrar password"}
                 >
@@ -306,7 +324,7 @@ export default function LoginPage() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="ej: calix_123"
-                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:border-white/20"
+                  className="mt-1 w-full input-field px-3 py-2 text-sm placeholder:text-neutral-500"
                   autoComplete="username"
                 />
                 <p className="mt-2 text-xs text-neutral-400">
@@ -318,7 +336,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || !identifier.trim() || !password || (mode === "signup" && !username.trim())}
-              className="w-full rounded-xl bg-white px-3 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl btn-primary px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? "Procesando..." : mode === "login" ? "Entrar" : "Crear cuenta"}
             </button>
@@ -330,6 +348,10 @@ export default function LoginPage() {
             )}
           </form>
         </div>
+
+        <p className="mt-6 text-center text-xs text-neutral-400">
+          Hecho para jugar rápido.
+        </p>
       </div>
     </main>
   );

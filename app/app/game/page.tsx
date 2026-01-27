@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import Image from "next/image";
 import {
   listGameSessions,
   createGameSession,
@@ -73,20 +74,26 @@ export default function GameSessionsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-800 text-neutral-100">
-      <div className="mx-auto max-w-5xl px-4 py-10">
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold tracking-tight">Impostor</h1>
-            <p className="text-sm text-neutral-300">
-              Crea una sesión para tu grupo y entra para administrar jugadores y rondas.
-            </p>
+    <main className="min-h-screen text-neutral-100 px-4 py-10">
+      <div className="mx-auto max-w-md">
+        <header className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/impostor-logo.png"
+              alt="Impostor Panamá"
+              width={220}
+              height={120}
+              className="h-11 w-auto drop-shadow-xl select-none"
+            />
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">Sesiones</h1>
+            </div>
           </div>
 
           <button
             onClick={signOut}
             disabled={loading}
-            className="rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-neutral-100 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl btn-ghost px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
           >
             Logout
           </button>
@@ -98,23 +105,23 @@ export default function GameSessionsPage() {
           </div>
         )}
 
-        <section className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
+        <section className="mt-6 glass-card p-5 shadow-2xl">
           <div className="flex flex-col gap-1">
             <h2 className="text-lg font-semibold">Nueva sesión</h2>
             <p className="text-sm text-neutral-400">Ej: “Viernes con amigos”</p>
           </div>
 
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <div className="mt-4 flex flex-col gap-3">
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Nombre de la sesión"
-              className="w-full flex-1 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:border-white/20"
+              className="w-full input-field px-4 py-3 text-base placeholder:text-neutral-500"
             />
             <button
               onClick={onCreate}
               disabled={loading || !title.trim()}
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl btn-primary px-4 py-3 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? "Creando..." : "Crear"}
             </button>
@@ -129,11 +136,11 @@ export default function GameSessionsPage() {
               Aún no tienes sesiones. Crea una arriba para empezar.
             </div>
           ) : (
-            <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+            <ul className="mt-3 grid gap-4">
               {sessions.map((s) => (
                 <li
                   key={s.id}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg"
+                  className="glass-card p-4 shadow-lg"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -147,13 +154,13 @@ export default function GameSessionsPage() {
                   <div className="mt-4 flex items-center gap-3">
                     <Link
                       href={`/game/${s.id}`}
-                      className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-neutral-900 hover:bg-neutral-200"
+                      className="rounded-lg btn-primary px-3 py-1.5 text-sm font-semibold"
                     >
                       Entrar
                     </Link>
                     <button
                       onClick={() => onDelete(s.id)}
-                      className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-neutral-100 hover:bg-white/10"
+                      className="rounded-lg btn-ghost px-3 py-1.5 text-sm text-neutral-100"
                     >
                       Eliminar
                     </button>

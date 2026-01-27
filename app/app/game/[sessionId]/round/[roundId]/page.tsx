@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import Image from "next/image";
 import {
   deleteRound,
   endRound,
@@ -242,37 +243,47 @@ export default function RoundRevealPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-800 text-neutral-100">
-      <div className="mx-auto max-w-4xl px-4 py-10">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <Link href={lobbyHref} className="text-sm text-neutral-300 hover:text-white">
-              ← Volver al lobby
-            </Link>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-              Ronda #{roundNumber}
-            </h1>
-            <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-200/90">
-              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
-                Estado: <span className="font-semibold">{status}</span>
-              </span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
-                Pack: <span className="font-semibold">{headerPack}</span>
-              </span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
-                Reveal:{" "}
-                <span className="font-semibold">
-                  {revealStats.revealed} / {revealStats.total}
-                </span>
-              </span>
-            </div>
+    <main className="min-h-screen text-neutral-100 px-4 py-10">
+      <div className="mx-auto max-w-md">
+        <header className="space-y-4">
+          <Link
+            href={lobbyHref}
+            className="w-full inline-flex items-center justify-center rounded-xl btn-ghost px-4 py-3 text-sm font-semibold text-neutral-100"
+          >
+            ← Volver al lobby
+          </Link>
+
+          <div className="flex flex-col items-center text-center gap-2">
+            <Image
+              src="/impostor-logo.png"
+              alt="Impostor Panamá"
+              width={260}
+              height={140}
+              className="h-12 w-auto drop-shadow-xl select-none"
+            />
+            <h1 className="text-2xl font-semibold tracking-tight">Ronda #{roundNumber}</h1>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-center gap-2 text-xs text-neutral-200/90">
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+              Estado: <span className="font-semibold">{status}</span>
+            </span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+              Pack: <span className="font-semibold">{headerPack}</span>
+            </span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+              Reveal:{" "}
+              <span className="font-semibold">
+                {revealStats.revealed} / {revealStats.total}
+              </span>
+            </span>
+          </div>
+
+          <div className="grid gap-2">
             <button
               onClick={onEndRound}
               disabled={loading || round?.status !== "running"}
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl btn-primary px-4 py-3 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
               title={round?.status !== "running" ? "Solo disponible cuando la ronda está en running" : undefined}
             >
               Terminar ronda
@@ -281,28 +292,28 @@ export default function RoundRevealPage() {
             <button
               onClick={onPlayAgain}
               disabled={loading || round?.status !== "ended"}
-              className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-neutral-100 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl btn-ghost px-4 py-3 text-base font-semibold text-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
               title={round?.status !== "ended" ? "Disponible cuando la ronda está ended" : undefined}
             >
               Jugar de nuevo
             </button>
 
             <button
-              onClick={onDeleteRound}
-              disabled={loading || round?.status !== "ended"}
-              className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-neutral-100 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-              title={round?.status !== "ended" ? "Disponible cuando la ronda está ended" : undefined}
-            >
-              Borrar ronda
-            </button>
-
-            <button
               onClick={() => setShowImpostors(true)}
               disabled={loading || round?.status !== "ended"}
-              className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-neutral-100 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl btn-ghost px-4 py-3 text-base font-semibold text-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
               title={round?.status !== "ended" ? "Disponible cuando la ronda está ended" : undefined}
             >
               Revelar impostores
+            </button>
+
+            <button
+              onClick={onDeleteRound}
+              disabled={loading || round?.status !== "ended"}
+              className="w-full rounded-xl btn-ghost px-4 py-3 text-base font-semibold text-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
+              title={round?.status !== "ended" ? "Disponible cuando la ronda está ended" : undefined}
+            >
+              Borrar ronda
             </button>
           </div>
         </header>
@@ -313,7 +324,7 @@ export default function RoundRevealPage() {
           </div>
         )}
 
-        <section className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
+        <section className="mt-6 glass-card p-5 shadow-2xl">
           <div className="flex items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Jugadores activos</h2>
@@ -329,7 +340,7 @@ export default function RoundRevealPage() {
               No hay jugadores activos en esta sesión.
             </div>
           ) : (
-            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+            <ul className="mt-4 grid gap-3">
               {players.map((p) => {
                 const a = assignmentByPlayerId.get(p.id);
                 const revealed = Boolean(a?.revealed_at);
@@ -340,10 +351,10 @@ export default function RoundRevealPage() {
                       onClick={() => openPlayer(p.id)}
                       disabled={disabled}
                       className={[
-                        "w-full rounded-xl border px-4 py-3 text-left transition",
+                        "w-full rounded-xl border px-4 py-4 text-left transition",
                         disabled
                           ? "cursor-not-allowed border-white/5 bg-black/10 text-neutral-500"
-                          : "border-white/10 bg-black/20 hover:bg-black/30",
+                          : "border-white/10 bg-black/20 hover:bg-black/30 active:translate-y-[1px]",
                       ].join(" ")}
                     >
                       <div className="flex items-center justify-between gap-3">
