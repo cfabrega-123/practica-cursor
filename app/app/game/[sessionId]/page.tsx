@@ -6,6 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { startRound } from "@/lib/startRound";
 import { listAvailablePacks, type PackRow } from "@/lib/packs";
+import Image from "next/image";
+import { deleteRound as deleteRoundById } from "@/lib/gameRound";
 
 type GameSessionRow = {
   id: string;
@@ -300,6 +302,18 @@ export default function GameSessionPage() {
       setMsg("URL inválida: falta el id de la sesión.");
       return;
     }
+
+    const activeCount = players.filter((p) => p.is_active).length;
+    const imp = Math.max(1, Math.min(10, Number(impostorCount) || 1));
+    if (activeCount === 0) {
+      setMsg("No hay jugadores activos. Agrega jugadores antes de crear una ronda.");
+      return;
+    }
+    if (imp >= activeCount) {
+      setMsg(`No se puede crear la ronda: impostores (${imp}) debe ser menor que jugadores activos (${activeCount}).`);
+      return;
+    }
+
     setLoading(true);
     setMsg(null);
 
@@ -313,7 +327,6 @@ export default function GameSessionPage() {
 
     const maxRound = rounds.reduce((acc, r) => Math.max(acc, r.round_number), 0);
     const nextNum = maxRound + 1;
-    const imp = Math.max(1, Math.min(10, Number(impostorCount) || 1));
 
     const res = await supabase
       .from("game_rounds")
@@ -391,15 +404,42 @@ export default function GameSessionPage() {
     router.push(`/game/${sessionId}/round/${r.id}`);
   }
 
+  async function deletePastRound(roundId: string) {
+    if (!sessionId) return;
+    const ok = confirm("¿Borrar esta ronda? (Se eliminarán también sus asignaciones)");
+    if (!ok) return;
+
+    setLoading(true);
+    setMsg(null);
+    const res = await deleteRoundById(roundId);
+    setLoading(false);
+
+    if (res.error) {
+      setMsg(res.error.message);
+      return;
+    }
+
+    await loadAll();
+  }
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-800 text-neutral-100">
-      <div className="mx-auto max-w-5xl px-4 py-10">
+    <main className="min-h-screen text-neutral-100 px-4 py-10">
+      <div className="mx-auto max-w-md">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <Link href="/game" className="text-sm text-neutral-300 hover:text-white">
               ← Volver a sesiones
             </Link>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">{session?.title ?? "Impostor Game"}</h1>
+            <div className="mt-3 flex items-center gap-3">
+              <Image
+                src="/impostor-logo.png"
+                alt="Impostor Panamá"
+                width={220}
+                height={120}
+                className="h-10 w-auto drop-shadow-xl select-none"
+              />
+              <h1 className="text-2xl font-semibold tracking-tight">{session?.title ?? "Impostor Game"}</h1>
+            </div>
             {session?.created_at && (
               <p className="mt-1 text-sm text-neutral-400">
                 Creada: {new Date(session.created_at).toLocaleString()}
@@ -410,19 +450,19 @@ export default function GameSessionPage() {
           <button
             onClick={signOut}
             disabled={loading}
-            className="rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-neutral-100 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl btn-ghost px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
           >
             Logout
           </button>
         </header>
 
-        <section className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
+        <section className="mt-6 glass-card p-5 shadow-2xl">
           <h2 className="text-lg font-semibold">Pack</h2>
           <p className="mt-1 text-sm text-neutral-400">
             Selecciona el pack para esta sesión. Esto reinicia el secreto (chosen item).
           </p>
 
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="mt-4 flex flex-col gap-3">
             <select
               value={selectedPackId || session?.pack_id || ""}
               onChange={(e) => {
@@ -431,7 +471,7 @@ export default function GameSessionPage() {
                 void saveSessionPack(v);
               }}
               disabled={savingPack}
-              className="w-full max-w-md rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-white/20 disabled:opacity-60"
+              className="w-full input-field px-4 py-3 text-base disabled:opacity-60"
             >
               <option value="">— Sin pack —</option>
               {packs.map((p) => (
@@ -455,24 +495,24 @@ export default function GameSessionPage() {
           </div>
         )}
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <section className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
+        <div className="mt-6 grid gap-6">
+          <section className="glass-card p-5 shadow-2xl">
             <h2 className="text-lg font-semibold">Jugadores</h2>
             <p className="mt-1 text-sm text-neutral-400">
               Agrega el roster de tu sesión. Puedes desactivar jugadores sin borrarlos.
             </p>
 
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <div className="mt-4 flex flex-col gap-3">
               <input
                 value={newPlayerName}
                 onChange={(e) => setNewPlayerName(e.target.value)}
                 placeholder="Nombre del jugador"
-                className="w-full flex-1 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:border-white/20"
+                className="w-full input-field px-4 py-3 text-base placeholder:text-neutral-500"
               />
               <button
                 onClick={addPlayer}
                 disabled={loading || !newPlayerName.trim()}
-                className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-xl btn-primary px-4 py-3 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Agregar
               </button>
@@ -517,13 +557,13 @@ export default function GameSessionPage() {
             )}
           </section>
 
-          <section className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
+          <section className="glass-card p-5 shadow-2xl">
             <h2 className="text-lg font-semibold">Rondas</h2>
             <p className="mt-1 text-sm text-neutral-400">
               Por ahora puedes crear rondas en estado <span className="font-semibold">draft</span>.
             </p>
 
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="mt-4 flex flex-col gap-3">
               <label className="text-sm text-neutral-300">Impostores</label>
               <input
                 value={String(impostorCount)}
@@ -531,12 +571,12 @@ export default function GameSessionPage() {
                 type="number"
                 min={1}
                 max={10}
-                className="w-full max-w-[160px] rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-white/20"
+                className="w-full input-field px-4 py-3 text-base"
               />
               <button
                 onClick={createRound}
                 disabled={loading}
-                className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-xl btn-primary px-4 py-3 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Crear ronda
               </button>
@@ -551,31 +591,44 @@ export default function GameSessionPage() {
                 {rounds.map((r) => (
                   <li
                     key={r.id}
-                    className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                    className="rounded-xl border border-white/10 bg-black/20 px-3 py-3"
                   >
-                    <div>
-                      <div className="font-medium">Ronda #{r.round_number}</div>
-                      <div className="text-xs text-neutral-500">Estado: {r.status}</div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-medium">Ronda #{r.round_number}</div>
+                        <div className="text-xs text-neutral-500">Estado: {r.status}</div>
+                      </div>
+                      <div className="text-xs text-neutral-500">{new Date(r.created_at).toLocaleString()}</div>
                     </div>
-                    <div className="flex items-center gap-3">
+
+                    <div className="mt-3 grid gap-2">
                       {r.status === "draft" ? (
                         <button
                           onClick={() => onStartExistingRound(r)}
                           disabled={loading}
-                          className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-neutral-900 hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="w-full rounded-xl btn-primary px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Comenzar
+                          Comenzar ronda
                         </button>
                       ) : (
                         <Link
                           href={sessionId ? `/game/${sessionId}/round/${r.id}` : "#"}
-                          className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-neutral-900 hover:bg-neutral-200"
+                          className="w-full rounded-xl btn-primary px-4 py-2 text-sm font-semibold text-center"
                           aria-disabled={!sessionId}
                         >
-                          Revelar roles
+                          Entrar a reveal
                         </Link>
                       )}
-                      <div className="text-xs text-neutral-500">{new Date(r.created_at).toLocaleString()}</div>
+
+                      {r.status !== "running" && (
+                        <button
+                          onClick={() => deletePastRound(r.id)}
+                          disabled={loading}
+                          className="w-full rounded-xl btn-ghost px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Borrar ronda
+                        </button>
+                      )}
                     </div>
                   </li>
                 ))}

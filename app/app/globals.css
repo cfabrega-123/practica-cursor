@@ -3,6 +3,14 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Panama-inspired palette */
+  --panama-red: #d81e34;
+  --panama-blue: #0057b8;
+  --panama-gold: #f6c342;
+  --panama-ink: #0b1220;
+  --panama-mist: rgba(255, 255, 255, 0.08);
+  --panama-border: rgba(255, 255, 255, 0.12);
 }
 
 @theme inline {
@@ -23,4 +31,86 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ---------- App “phone” look ---------- */
+.app-bg {
+  background:
+    radial-gradient(1200px 800px at 20% 0%, rgba(216, 30, 52, 0.18), transparent 55%),
+    radial-gradient(900px 700px at 90% 10%, rgba(0, 87, 184, 0.18), transparent 55%),
+    radial-gradient(800px 600px at 60% 90%, rgba(246, 195, 66, 0.12), transparent 55%),
+    linear-gradient(180deg, #05070d, #0a1020 40%, #05070d);
+}
+
+.mola-noise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.08;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,0.16) 1px, transparent 0);
+  background-size: 16px 16px;
+  mix-blend-mode: overlay;
+}
+
+.phone-frame {
+  position: relative;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 430px; /* iPhone-ish */
+  min-height: 100vh;
+}
+
+@media (min-width: 900px) {
+  .phone-frame {
+    min-height: 860px;
+    margin: 28px auto;
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(10, 16, 32, 0.55);
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.55),
+      0 0 0 8px rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+  }
+}
+
+.glass-card {
+  border: 1px solid var(--panama-border);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--panama-gold), #ffd98a);
+  color: #10131c;
+}
+.btn-primary:hover { filter: brightness(1.03); }
+.btn-primary:active { transform: translateY(1px); }
+
+.btn-ghost {
+  border: 1px solid var(--panama-border);
+  background: rgba(255,255,255,0.04);
+}
+.btn-ghost:hover { background: rgba(255,255,255,0.08); }
+.btn-ghost:active { transform: translateY(1px); }
+
+.input-field {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.28);
+  border-radius: 14px;
+}
+.input-field:focus {
+  outline: none;
+  border-color: rgba(255,255,255,0.22);
+}
+
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.floaty {
+  animation: floaty 6s ease-in-out infinite;
 }
