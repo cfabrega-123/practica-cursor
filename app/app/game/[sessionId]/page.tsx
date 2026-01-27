@@ -280,8 +280,7 @@ export default function GameSessionPage() {
       setMsg("URL inválida: falta el id de la sesión.");
       return;
     }
-    const ok = confirm("¿Eliminar jugador?");
-    if (!ok) return;
+    if (loading) return;
     setLoading(true);
     setMsg(null);
     const res = await supabase
@@ -371,7 +370,6 @@ export default function GameSessionPage() {
     setMsg(null);
 
     // Idempotente: si ya tiene assignments, startRound no los recrea.
-    // Si está en draft y ya tenía roles, ofrecemos "re-rollear".
     setLoading(true);
     const started = await startRound({ sessionId, roundId: r.id, impostorCount: r.impostor_count });
     setLoading(false);
@@ -381,34 +379,12 @@ export default function GameSessionPage() {
       return;
     }
 
-    if (started.alreadyHadAssignments && r.status === "draft") {
-      const reset = confirm(
-        "Esta ronda ya tenía roles asignados. ¿Quieres volver a mezclar (borrar y re-crear) los roles?"
-      );
-      if (reset) {
-        setLoading(true);
-        const again = await startRound({
-          sessionId,
-          roundId: r.id,
-          impostorCount: r.impostor_count,
-          forceReset: true,
-        });
-        setLoading(false);
-        if (!again.ok) {
-          setMsg(again.rlsHint ? `${again.error}\n\n${again.rlsHint}` : again.error);
-          return;
-        }
-      }
-    }
-
     router.push(`/game/${sessionId}/round/${r.id}`);
   }
 
   async function deletePastRound(roundId: string) {
     if (!sessionId) return;
-    const ok = confirm("¿Borrar esta ronda? (Se eliminarán también sus asignaciones)");
-    if (!ok) return;
-
+    if (loading) return;
     setLoading(true);
     setMsg(null);
     const res = await deleteRoundById(roundId);

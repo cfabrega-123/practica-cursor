@@ -1,1 +1,1 @@
-# Cursor Practice
+# Impostor App
