@@ -49,6 +49,7 @@ export default function RoundRevealPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const [modal, setModal] = useState<ModalState>({ open: false });
+  const [showImpostors, setShowImpostors] = useState(false);
 
   const assignmentByPlayerId = useMemo(() => {
     const m = new Map<string, RoundAssignment>();
@@ -151,6 +152,13 @@ export default function RoundRevealPage() {
     if (!modal.open) return null;
     return assignmentByPlayerId.get(modal.playerId) ?? null;
   }, [assignmentByPlayerId, modal]);
+
+  const impostorNames = useMemo(() => {
+    const impostorIds = new Set(
+      assignments.filter((a) => a.role === "impostor").map((a) => a.session_player_id)
+    );
+    return players.filter((p) => impostorIds.has(p.id)).map((p) => p.name);
+  }, [assignments, players]);
 
   async function revealNow() {
     if (!modal.open) return;
@@ -286,6 +294,15 @@ export default function RoundRevealPage() {
               title={round?.status !== "ended" ? "Disponible cuando la ronda está ended" : undefined}
             >
               Borrar ronda
+            </button>
+
+            <button
+              onClick={() => setShowImpostors(true)}
+              disabled={loading || round?.status !== "ended"}
+              className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-neutral-100 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              title={round?.status !== "ended" ? "Disponible cuando la ronda está ended" : undefined}
+            >
+              Revelar impostores
             </button>
           </div>
         </header>
@@ -438,6 +455,58 @@ export default function RoundRevealPage() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Impostors modal */}
+        {showImpostors && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="w-full max-w-md rounded-2xl border border-white/10 bg-neutral-950 p-5 shadow-2xl">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs text-neutral-400">Resultado</div>
+                  <div className="text-lg font-semibold">Impostores</div>
+                </div>
+                <button
+                  onClick={() => setShowImpostors(false)}
+                  className="rounded-lg px-2 py-1 text-sm text-neutral-200 hover:bg-white/10"
+                  aria-label="Cerrar"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                {impostorNames.length === 0 ? (
+                  <p className="text-sm text-neutral-300">
+                    No se encontró ningún impostor (¿no hay asignaciones cargadas?).
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {impostorNames.map((n) => (
+                      <li
+                        key={n}
+                        className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                      >
+                        <span className="font-semibold text-red-200">{n}</span>
+                        <span className="text-xs text-neutral-400">IMPOSTOR</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <button
+                onClick={() => setShowImpostors(false)}
+                className="mt-4 w-full rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-neutral-100 hover:bg-white/10"
+              >
+                Cerrar
+              </button>
             </div>
           </div>
         )}
