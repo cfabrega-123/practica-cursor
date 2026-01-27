@@ -15,7 +15,8 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Impostor",
   icons: {
-    icon: "/favicon.ico",
+    icon: ["/favicon.ico", "/icons/icon-192.png"],
+    apple: "/icons/apple-touch-icon.png",
   },
 };
 
@@ -26,6 +27,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased app-bg`}
       >
