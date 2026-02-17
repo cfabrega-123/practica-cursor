@@ -161,6 +161,12 @@ export default function RoundRevealPage() {
     return players.filter((p) => impostorIds.has(p.id)).map((p) => p.name);
   }, [assignments, players]);
 
+  const starterName = useMemo(() => {
+    const sid = round?.starter_session_player_id ?? null;
+    if (!sid) return null;
+    return players.find((p) => p.id === sid)?.name ?? null;
+  }, [players, round?.starter_session_player_id]);
+
   async function revealNow() {
     if (!modal.open) return;
     if (!modalAssignment) {
@@ -273,6 +279,9 @@ export default function RoundRevealPage() {
               <span className="font-semibold">
                 {revealStats.revealed} / {revealStats.total}
               </span>
+            </span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+              Empieza: <span className="font-semibold">{starterName ?? "—"}</span>
             </span>
           </div>
 
