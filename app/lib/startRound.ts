@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabaseClient";
 import type { PostgrestError } from "@supabase/supabase-js";
 
+export const IMPOSTOR_START_WEIGHT = 0.05;
+
 export type StartRoundParams = {
   sessionId: string;
   roundId: string;
@@ -23,6 +25,21 @@ export function pickRandom<T>(items: T[], count: number): T[] {
   return arr.slice(0, Math.max(0, Math.min(count, arr.length)));
 }
 
+export function pickWeightedRandom(items: { id: string; weight: number }[]): string {
+  const filtered = items.filter((i) => Number(i.weight) > 0);
+  const total = filtered.reduce((acc, i) => acc + i.weight, 0);
+  if (filtered.length === 0 || total <= 0) {
+    // Fallback: pick first if something is weird
+    return items[0]?.id ?? "";
+  }
+  let r = Math.random() * total;
+  for (const it of filtered) {
+    r -= it.weight;
+    if (r <= 0) return it.id;
+  }
+  return filtered[filtered.length - 1].id;
+}
+
 export async function startRound(
   params: StartRoundParams
 ): Promise<
@@ -41,7 +58,7 @@ export async function startRound(
   // Validar ronda existe y pertenece a la sesión
   const roundRes = await supabase
     .from("game_rounds")
-    .select("id,session_id,status,pack_id,chosen_item_id")
+    .select("id,session_id,status,pack_id,chosen_item_id,starter_session_player_id")
     .eq("id", roundId)
     .single();
 
@@ -114,6 +131,16 @@ export async function startRound(
       const u = await supabase.from("game_rounds").update({ chosen_item_id: pick.itemId }).eq("id", roundId);
       if (u.error) return { ok: false, error: u.error.message, rlsHint: rlsHint(u.error) };
     }
+
+    // Starter (una sola vez por ronda)
+    const ensureStarter = await ensureStarterForRound({
+      userId,
+      sessionId,
+      roundId,
+      forceReset: false,
+    });
+    if (!ensureStarter.ok) return { ok: false, error: ensureStarter.error, rlsHint: ensureStarter.rlsHint };
+
     return { ok: true, alreadyHadAssignments: true, roundId, sessionId };
   }
 
@@ -143,6 +170,15 @@ export async function startRound(
     chosenItemId = pick.itemId;
   }
 
+  // Starter (si forceReset, volvemos a sortear)
+  const ensureStarter = await ensureStarterForRound({
+    userId,
+    sessionId,
+    roundId,
+    forceReset: Boolean(params.forceReset),
+  });
+  if (!ensureStarter.ok) return { ok: false, error: ensureStarter.error, rlsHint: ensureStarter.rlsHint };
+
   const upd = await supabase
     .from("game_rounds")
     .update({
@@ -151,6 +187,7 @@ export async function startRound(
       ended_at: null,
       pack_id: packId,
       chosen_item_id: chosenItemId,
+      starter_session_player_id: ensureStarter.starterId,
     })
     .eq("id", roundId);
   if (upd.error) return { ok: false, error: upd.error.message, rlsHint: rlsHint(upd.error) };
@@ -205,6 +242,71 @@ async function pickRandomItemId(
   const [id] = pickRandom(ids, 1);
   if (!id) return { ok: false, error: "No se pudo elegir un item del pack." };
   return { ok: true, itemId: id };
+}
+
+async function ensureStarterForRound(params: {
+  userId: string;
+  sessionId: string;
+  roundId: string;
+  forceReset: boolean;
+}): Promise<{ ok: true; starterId: string | null } | { ok: false; error: string; rlsHint?: string }> {
+  // Check current starter
+  const r = await supabase
+    .from("game_rounds")
+    .select("starter_session_player_id")
+    .eq("id", params.roundId)
+    .single();
+  if (r.error) return { ok: false, error: r.error.message, rlsHint: rlsHint(r.error) };
+  const current = (r.data as { starter_session_player_id: string | null }).starter_session_player_id ?? null;
+
+  if (current && !params.forceReset) return { ok: true, starterId: current };
+
+  if (params.forceReset && current) {
+    const clear = await supabase
+      .from("game_rounds")
+      .update({ starter_session_player_id: null })
+      .eq("id", params.roundId);
+    if (clear.error) return { ok: false, error: clear.error.message, rlsHint: rlsHint(clear.error) };
+  }
+
+  // Active players
+  const playersRes = await supabase
+    .from("game_session_players")
+    .select("id")
+    .eq("session_id", params.sessionId)
+    .eq("is_active", true);
+  if (playersRes.error) return { ok: false, error: playersRes.error.message, rlsHint: rlsHint(playersRes.error) };
+  const playerIds = (playersRes.data ?? []).map((x) => String((x as { id: string }).id));
+  if (playerIds.length === 0) return { ok: true, starterId: null };
+
+  // Assignments -> roles
+  const assignsRes = await supabase
+    .from("game_round_assignments")
+    .select("session_player_id,role")
+    .eq("round_id", params.roundId);
+  if (assignsRes.error) return { ok: false, error: assignsRes.error.message, rlsHint: rlsHint(assignsRes.error) };
+  const roleByPlayer = new Map<string, string>();
+  for (const row of assignsRes.data ?? []) {
+    const rr = row as { session_player_id: string; role: string };
+    roleByPlayer.set(String(rr.session_player_id), String(rr.role));
+  }
+
+  const weighted = playerIds.map((id) => {
+    const role = roleByPlayer.get(id);
+    const weight = role === "impostor" ? IMPOSTOR_START_WEIGHT : 1.0;
+    return { id, weight };
+  });
+
+  const picked = pickWeightedRandom(weighted);
+  if (!picked) return { ok: true, starterId: null };
+
+  const upd = await supabase
+    .from("game_rounds")
+    .update({ starter_session_player_id: picked })
+    .eq("id", params.roundId);
+  if (upd.error) return { ok: false, error: upd.error.message, rlsHint: rlsHint(upd.error) };
+
+  return { ok: true, starterId: picked };
 }
 
 function rlsHint(err: PostgrestError): string | undefined {

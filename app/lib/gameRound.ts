@@ -11,6 +11,7 @@ export type GameRound = {
   chosen_item_id: string | null;
   started_at?: string | null;
   ended_at: string | null;
+  starter_session_player_id?: string | null;
 };
 
 export type ActivePlayer = {
@@ -32,7 +33,9 @@ export type RoundAssignment = {
 export async function getRound(roundId: string): Promise<{ data: GameRound | null; error: PostgrestError | null }> {
   const res = await supabase
     .from("game_rounds")
-    .select("id,session_id,round_number,status,pack_id,impostor_count,chosen_item_id,started_at,ended_at")
+    .select(
+      "id,session_id,round_number,status,pack_id,impostor_count,chosen_item_id,starter_session_player_id,started_at,ended_at"
+    )
     .eq("id", roundId)
     .single();
 
